@@ -49,6 +49,10 @@ class Settings(BaseSettings):
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR)",
     )
+    log_format: str = Field(
+        default="console",
+        description="Log format: 'console' (dev) or 'json' (prod)",
+    )
 
     # RAG settings
     embedding_model: str = Field(
