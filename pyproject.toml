@@ -1,0 +1,22 @@
+[project]
+name = "support-agent-demo-project"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "chromadb>=1.1.1",
+    "crewai>=1.8.1",
+    "fastapi>=0.128.0",
+    "gradio>=6.3.0",
+    "langfuse>=3.12.0",
+    "openai>=1.83.0",
+    "pandas>=2.3.3",
+    "pydantic-settings>=2.7.0",
+    "pytest>=9.0.2",
+    "python-dotenv>=1.1.1",
+    "ruff>=0.14.13",
+    "structlog>=25.5.0",
+    "typer>=0.21.1",
+]
