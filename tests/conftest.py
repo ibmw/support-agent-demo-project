@@ -1,5 +1,12 @@
 """Shared pytest fixtures for the test suite."""
 
+import os
+
+# Set test environment variables BEFORE importing anything that uses settings
+os.environ.setdefault("OPENAI_API_KEY", "test-key-not-real")
+os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "test-public-key")
+os.environ.setdefault("LANGFUSE_SECRET_KEY", "test-secret-key")
+
 import pytest
 
 from support_agent.indexing import Article, Chunk
@@ -110,7 +117,7 @@ def sample_chunks(sample_articles: list[Article]) -> list[Chunk]:
 
 
 # ============================================================================
-# Mock Fixtures (for future use)
+# Mock Fixtures
 # ============================================================================
 
 
@@ -121,16 +128,11 @@ def mock_embeddings():
 
     Returns a function that generates fake embeddings based on text hash.
     """
+    from tests.helpers import generate_fake_embedding
 
     def _embed(texts: list[str]) -> list[list[float]]:
-        """Generate fake embeddings (384 dimensions like text-embedding-3-small)."""
-        embeddings = []
-        for text in texts:
-            # Create deterministic fake embedding from text hash
-            seed = hash(text) % 10000
-            embedding = [(seed + i) % 100 / 100.0 for i in range(384)]
-            embeddings.append(embedding)
-        return embeddings
+        """Generate fake embeddings (1536 dimensions like text-embedding-3-small)."""
+        return [generate_fake_embedding(text) for text in texts]
 
     return _embed
 
