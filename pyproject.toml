@@ -21,6 +21,7 @@ dependencies = [
     "ruff>=0.14.13",
     "structlog>=25.5.0",
     "typer>=0.21.1",
+    "uvicorn>=0.34.0",
 ]
 
 [tool.pytest.ini_options]
@@ -43,7 +44,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["src/support_agent"]
+source = ["src/support_agent", "cli"]
 branch = true
 omit = [
     "*/tests/*",

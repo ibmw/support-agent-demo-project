@@ -3067,6 +3067,7 @@ dependencies = [
     { name = "ruff" },
     { name = "structlog" },
     { name = "typer" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -3087,6 +3088,7 @@ requires-dist = [
     { name = "ruff", specifier = ">=0.14.13" },
     { name = "structlog", specifier = ">=25.5.0" },
     { name = "typer", specifier = ">=0.21.1" },
+    { name = "uvicorn", specifier = ">=0.34.0" },
 ]
 
 [[package]]

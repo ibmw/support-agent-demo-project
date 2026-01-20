@@ -74,5 +74,19 @@ class Settings(BaseSettings):
         description="Maximum conversation turns to keep in context",
     )
 
+    # API settings
+    api_host: str = Field(
+        default="127.0.0.1",
+        description="API server host",
+    )
+    api_port: int = Field(
+        default=8000,
+        description="API server port",
+    )
+    api_cors_origins: list[str] = Field(
+        default=["http://localhost:7860", "http://127.0.0.1:7860"],
+        description="Allowed CORS origins (Gradio default port is 7860)",
+    )
+
 
 settings = Settings()
