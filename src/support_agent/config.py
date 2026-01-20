@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(..., description="OpenAI API key")
 
     # LangFuse observability
+    langfuse_enabled: bool = Field(
+        default=True,
+        description="Enable LangFuse tracing (set to false for tests)",
+    )
     langfuse_public_key: str = Field(..., description="LangFuse public key")
     langfuse_secret_key: str = Field(..., description="LangFuse secret key")
     langfuse_host: str = Field(
