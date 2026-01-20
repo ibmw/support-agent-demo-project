@@ -1,5 +1,7 @@
 """
 Knowledge base retriever for querying ChromaDB.
+
+Includes LangFuse tracing for observability.
 """
 
 import hashlib
@@ -7,7 +9,7 @@ from dataclasses import dataclass, field
 
 import chromadb
 
-from ..clients import get_openai_client
+from ..clients import get_openai_client, observe
 from ..config import settings
 from ..logging import get_logger
 
@@ -70,6 +72,7 @@ class KnowledgeBaseRetriever:
             collection=settings.chroma_collection_name,
         )
 
+    @observe(name="retriever.retrieve")
     def retrieve(self, query: str) -> list[RetrievalResult]:
         """
         Retrieve relevant chunks for a query.

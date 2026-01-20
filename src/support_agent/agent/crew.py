@@ -3,6 +3,7 @@ CrewAI agent, task, and crew orchestration for the support agent.
 
 This module sets up the Support Specialist agent with knowledge base tools
 and provides methods to process customer queries with optional conversation memory.
+Includes LangFuse tracing for observability.
 """
 
 import hashlib
@@ -13,6 +14,7 @@ from uuid import UUID
 from crewai import Agent, Crew, Process, Task
 from pydantic import ValidationError
 
+from ..clients import get_langfuse_client, observe
 from ..config import settings
 from ..exceptions import AgentError, InvalidResponseError
 from ..logging import get_logger
@@ -148,11 +150,13 @@ class SupportCrew:
             "successful_requests": getattr(token_usage, "successful_requests", 0),
         }
 
+    @observe(name="support_agent.process_query")
     def process_query(
         self,
         query: str,
         session_id: UUID | None = None,
         store_in_session: bool = True,
+        eval_tag: str | None = None,
     ) -> AgentResponse:
         """
         Process a customer support query with optional conversation memory.
@@ -163,6 +167,7 @@ class SupportCrew:
                         If provided, conversation history will be included in context.
             store_in_session: Whether to store the query and response in the session.
                               Only applies if session_id is provided. Defaults to True.
+            eval_tag: Optional evaluation tag for LangFuse tracing
 
         Returns:
             Structured AgentResponse
@@ -183,6 +188,26 @@ class SupportCrew:
         )
 
         log.info("Processing support query")
+
+        # Update LangFuse trace with metadata
+        try:
+            langfuse = get_langfuse_client()
+            trace_metadata = {
+                "query_hash": query_hash,
+                "model": self.model,
+            }
+            if eval_tag:
+                trace_metadata["eval_tag"] = eval_tag
+
+            langfuse.update_current_trace(
+                input=query,
+                session_id=str(session_id) if session_id else None,
+                tags=["support-agent", eval_tag] if eval_tag else ["support-agent"],
+                metadata=trace_metadata,
+            )
+        except Exception as e:
+            # Don't fail the query if LangFuse update fails
+            log.debug("Failed to update LangFuse trace", error=str(e))
 
         # Get conversation history if session exists
         conversation_history: str | None = None
@@ -257,6 +282,38 @@ class SupportCrew:
                 **token_usage,
             )
 
+            # Update LangFuse trace with output and metrics
+            try:
+                langfuse = get_langfuse_client()
+                langfuse.update_current_trace(
+                    output={
+                        "action": response.action,
+                        "message": response.message[:200],  # Truncate for readability
+                        "sources_count": len(response.sources),
+                        "confidence": response.confidence,
+                    },
+                    metadata={
+                        "action": response.action,
+                        "confidence": response.confidence,
+                        "latency_ms": round(latency_ms, 2),
+                        **token_usage,
+                    },
+                )
+                # Create score for the action type
+                langfuse.score_current_trace(
+                    name="action",
+                    value=response.action,
+                    data_type="CATEGORICAL",
+                )
+                if response.confidence is not None:
+                    langfuse.score_current_trace(
+                        name="confidence",
+                        value=response.confidence,
+                        data_type="NUMERIC",
+                    )
+            except Exception as e:
+                log.debug("Failed to update LangFuse trace output", error=str(e))
+
             return response
 
         except ValidationError as e:
@@ -287,6 +344,7 @@ class SupportCrew:
         query: str,
         session_id: UUID | None = None,
         metadata: dict[str, str] | None = None,
+        eval_tag: str | None = None,
     ) -> tuple[AgentResponse, UUID]:
         """
         Process a query within a conversation session.
@@ -298,6 +356,7 @@ class SupportCrew:
             query: The customer's query
             session_id: Optional existing session ID. If None, creates a new session.
             metadata: Optional metadata for new session (ignored if session exists)
+            eval_tag: Optional evaluation tag for LangFuse tracing
 
         Returns:
             Tuple of (AgentResponse, session_id) for use in subsequent calls
@@ -318,6 +377,7 @@ class SupportCrew:
             query=query,
             session_id=session.id,
             store_in_session=True,
+            eval_tag=eval_tag,
         )
 
         return response, session.id

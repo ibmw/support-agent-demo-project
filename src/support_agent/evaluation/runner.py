@@ -100,6 +100,7 @@ def sample_questions(
 def evaluate_single(
     question: str,
     crew: SupportCrew,
+    eval_tag: str | None = None,
 ) -> EvaluationResult:
     """
     Evaluate a single question.
@@ -107,6 +108,7 @@ def evaluate_single(
     Args:
         question: The question to evaluate
         crew: The SupportCrew instance to use
+        eval_tag: Optional tag for LangFuse tracing
 
     Returns:
         EvaluationResult with response or error
@@ -114,7 +116,7 @@ def evaluate_single(
     start_time = time.time()
 
     try:
-        response = crew.process_query(question)
+        response = crew.process_query(question, eval_tag=eval_tag)
         latency_ms = (time.time() - start_time) * 1000
 
         return EvaluationResult(
@@ -197,7 +199,7 @@ def run_batch_evaluation(
     )
 
     for i, question in enumerate(eval_questions):
-        result = evaluate_single(question, crew)
+        result = evaluate_single(question, crew, eval_tag=config.eval_tag)
         results.append(result)
 
         if progress_callback:
@@ -260,7 +262,7 @@ def iter_batch_evaluation(
     total = len(eval_questions)
 
     for i, question in enumerate(eval_questions):
-        result = evaluate_single(question, crew)
+        result = evaluate_single(question, crew, eval_tag=config.eval_tag)
         yield i + 1, total, result
 
 
@@ -525,6 +527,7 @@ def filter_scenarios(
 def evaluate_conversation(
     scenario: ConversationScenario,
     crew: SupportCrew,
+    eval_tag: str | None = None,
 ) -> ConversationResult:
     """
     Evaluate a single conversation scenario.
@@ -532,6 +535,7 @@ def evaluate_conversation(
     Args:
         scenario: The conversation scenario to evaluate
         crew: The SupportCrew instance to use
+        eval_tag: Optional tag for LangFuse tracing
 
     Returns:
         ConversationResult with turn-by-turn results
@@ -556,6 +560,7 @@ def evaluate_conversation(
                 response, session_id = crew.process_conversation(
                     query=user_message,
                     session_id=session_id,
+                    eval_tag=eval_tag,
                 )
                 turn_latency_ms = (time.time() - turn_start) * 1000
 
@@ -677,7 +682,7 @@ def run_conversation_evaluation(
         if reset_memory_per_scenario:
             reset_session_manager()
 
-        result = evaluate_conversation(scenario, crew)
+        result = evaluate_conversation(scenario, crew, eval_tag=config.eval_tag)
         results.append(result)
 
         if progress_callback:
@@ -746,7 +751,7 @@ def iter_conversation_evaluation(
         if reset_memory_per_scenario:
             reset_session_manager()
 
-        result = evaluate_conversation(scenario, crew)
+        result = evaluate_conversation(scenario, crew, eval_tag=config.eval_tag)
         yield i + 1, total, result
 
 

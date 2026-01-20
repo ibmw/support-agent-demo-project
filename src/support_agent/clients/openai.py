@@ -1,10 +1,11 @@
 """
-Centralized OpenAI client with retry logic and structured logging.
+Centralized OpenAI client with retry logic, structured logging, and LangFuse tracing.
 
 This module provides a singleton OpenAI client that handles:
 - Automatic retries with exponential backoff
 - Rate limit handling with wait time extraction
 - Structured logging for all API calls
+- LangFuse tracing for observability
 - Consistent error handling across the application
 """
 
@@ -13,10 +14,11 @@ import re
 import time
 from typing import Any
 
-from openai import APIConnectionError, OpenAI, RateLimitError
+from openai import APIConnectionError, PermissionDeniedError, RateLimitError
 
 from ..config import settings
 from ..logging import get_logger
+from .langfuse import get_langfuse_openai_client
 
 logger = get_logger(__name__, component="openai_client")
 
@@ -37,6 +39,7 @@ class OpenAIClient:
         max_retries: int = 5,
         base_delay: float = 1.0,
         max_delay: float = 60.0,
+        enable_tracing: bool = True,
     ):
         """
         Initialize the OpenAI client.
@@ -45,8 +48,11 @@ class OpenAIClient:
             max_retries: Maximum retry attempts for failed requests
             base_delay: Base delay in seconds for exponential backoff
             max_delay: Maximum delay in seconds between retries
+            enable_tracing: Whether to enable LangFuse tracing (default True)
         """
-        self._client = OpenAI(api_key=settings.openai_api_key)
+        # Use LangFuse-wrapped client for automatic tracing
+        self._client = get_langfuse_openai_client()
+        self._tracing_enabled = enable_tracing
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
@@ -56,6 +62,7 @@ class OpenAIClient:
             max_retries=max_retries,
             embedding_model=settings.embedding_model,
             llm_model=settings.llm_model,
+            tracing_enabled=enable_tracing,
         )
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
@@ -185,7 +192,9 @@ class OpenAIClient:
                 )
                 return result
 
-            except (RateLimitError, APIConnectionError) as e:
+            except (RateLimitError, APIConnectionError, PermissionDeniedError) as e:
+                # Note: PermissionDeniedError (403) can be a misleading rate limit
+                # response from OpenAI when hitting TPM limits
                 last_exception = e
                 log = logger.bind(
                     operation=operation,

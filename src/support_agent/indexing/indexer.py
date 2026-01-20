@@ -2,6 +2,8 @@
 ChromaDB indexer for the knowledge base.
 """
 
+import time
+
 import chromadb
 
 from ..clients import get_openai_client
@@ -50,6 +52,10 @@ class KnowledgeBaseIndexer:
             indexed = min(i + batch_size, total)
             logger.debug("Batch indexed", indexed=indexed, total=total)
             print(f"Indexed {indexed}/{total} chunks")
+
+            # Small delay between batches to avoid rate limits
+            if indexed < total:
+                time.sleep(1.0)
 
         logger.info("Indexing completed", total_chunks=total)
 
