@@ -2,12 +2,13 @@
 CrewAI agent, task, and crew orchestration for the support agent.
 
 This module sets up the Support Specialist agent with knowledge base tools
-and provides methods to process customer queries.
+and provides methods to process customer queries with optional conversation memory.
 """
 
 import hashlib
 import time
 from typing import Any
+from uuid import UUID
 
 from crewai import Agent, Crew, Process, Task
 from pydantic import ValidationError
@@ -15,12 +16,14 @@ from pydantic import ValidationError
 from ..config import settings
 from ..exceptions import AgentError, InvalidResponseError
 from ..logging import get_logger
+from ..memory import get_session_manager
 from ..rag.tools import search_knowledge_base
 from .prompts import (
     SUPPORT_SPECIALIST_BACKSTORY,
     SUPPORT_SPECIALIST_GOAL,
     SUPPORT_SPECIALIST_ROLE,
     SUPPORT_TASK_DESCRIPTION,
+    SUPPORT_TASK_DESCRIPTION_WITH_HISTORY,
     SUPPORT_TASK_EXPECTED_OUTPUT,
 )
 from .schemas import AgentResponse
@@ -80,18 +83,27 @@ class SupportCrew:
             allow_delegation=False,  # Single agent, no delegation needed
         )
 
-    def _create_task(self, query: str) -> Task:
+    def _create_task(self, query: str, conversation_history: str | None = None) -> Task:
         """
         Create a task for processing a customer query.
 
         Args:
             query: The customer's query
+            conversation_history: Optional formatted conversation history for context
 
         Returns:
             Configured Task instance
         """
+        if conversation_history:
+            description = SUPPORT_TASK_DESCRIPTION_WITH_HISTORY.format(
+                query=query,
+                conversation_history=conversation_history,
+            )
+        else:
+            description = SUPPORT_TASK_DESCRIPTION.format(query=query)
+
         return Task(
-            description=SUPPORT_TASK_DESCRIPTION.format(query=query),
+            description=description,
             expected_output=SUPPORT_TASK_EXPECTED_OUTPUT.strip(),
             agent=self._agent,
             output_pydantic=AgentResponse,
@@ -136,12 +148,21 @@ class SupportCrew:
             "successful_requests": getattr(token_usage, "successful_requests", 0),
         }
 
-    def process_query(self, query: str) -> AgentResponse:
+    def process_query(
+        self,
+        query: str,
+        session_id: UUID | None = None,
+        store_in_session: bool = True,
+    ) -> AgentResponse:
         """
-        Process a customer support query.
+        Process a customer support query with optional conversation memory.
 
         Args:
             query: The customer's query
+            session_id: Optional session ID for multi-turn conversations.
+                        If provided, conversation history will be included in context.
+            store_in_session: Whether to store the query and response in the session.
+                              Only applies if session_id is provided. Defaults to True.
 
         Returns:
             Structured AgentResponse
@@ -149,9 +170,7 @@ class SupportCrew:
         Raises:
             AgentError: If the agent fails to process the query
             InvalidResponseError: If the response cannot be parsed
-
-        Note:
-            Conversation memory will be added in Phase 3.2 (Memory Module).
+            SessionNotFoundError: If session_id is provided but session doesn't exist
         """
         start_time = time.time()
         # Create query hash for log correlation across services
@@ -160,13 +179,32 @@ class SupportCrew:
             query_preview=query[:100],
             query_hash=query_hash,
             query_length=len(query),
+            session_id=str(session_id) if session_id else None,
         )
 
         log.info("Processing support query")
 
+        # Get conversation history if session exists
+        conversation_history: str | None = None
+        session = None
+        if session_id:
+            manager = get_session_manager()
+            session = manager.get_session(session_id)
+            conversation_history = manager.get_context_window(session_id)
+
+            # Store the user query in session
+            if store_in_session:
+                session.add_user_message(query)
+
+            log.debug(
+                "Using conversation context",
+                turn_count=session.turn_count,
+                context_length=len(conversation_history) if conversation_history else 0,
+            )
+
         try:
-            # Create task and crew
-            task = self._create_task(query)
+            # Create task and crew (with conversation history if available)
+            task = self._create_task(query, conversation_history)
             crew = self._create_crew(task)
 
             # Execute the crew
@@ -193,6 +231,15 @@ class SupportCrew:
             if not isinstance(response, AgentResponse):
                 raise InvalidResponseError(
                     f"Expected AgentResponse, got {type(response).__name__}"
+                )
+
+            # Store response in session if applicable
+            if session and store_in_session:
+                session.add_agent_response(response)
+                log.debug(
+                    "Stored response in session",
+                    session_id=str(session_id),
+                    turn_count=session.turn_count,
                 )
 
             # Calculate latency
@@ -234,6 +281,46 @@ class SupportCrew:
                 latency_ms=round(latency_ms, 2),
             )
             raise AgentError(f"Failed to process query: {e}") from e
+
+    def process_conversation(
+        self,
+        query: str,
+        session_id: UUID | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> tuple[AgentResponse, UUID]:
+        """
+        Process a query within a conversation session.
+
+        This is a convenience method that handles session creation/retrieval
+        and returns both the response and session ID for continued conversations.
+
+        Args:
+            query: The customer's query
+            session_id: Optional existing session ID. If None, creates a new session.
+            metadata: Optional metadata for new session (ignored if session exists)
+
+        Returns:
+            Tuple of (AgentResponse, session_id) for use in subsequent calls
+
+        Example:
+            # First turn - creates session
+            response, session_id = crew.process_conversation("How do I reset my password?")
+
+            # Follow-up turn - continues conversation
+            response, _ = crew.process_conversation("What if that doesn't work?", session_id)
+        """
+        manager = get_session_manager()
+        session = manager.get_or_create_session(
+            session_id=session_id, metadata=metadata
+        )
+
+        response = self.process_query(
+            query=query,
+            session_id=session.id,
+            store_in_session=True,
+        )
+
+        return response, session.id
 
 
 # Module-level singleton for convenience
