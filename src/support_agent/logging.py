@@ -10,12 +10,18 @@ from structlog.types import Processor
 from .config import settings
 
 
-def setup_logging() -> None:
+def setup_logging(level: str | None = None) -> None:
     """
     Configure structlog with appropriate processors for dev/prod.
 
+    Args:
+        level: Optional log level override (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+               If not provided, uses settings.log_level.
+
     Call this once at application startup.
     """
+    log_level = level or settings.log_level
+
     # Shared processors for all environments
     shared_processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
@@ -52,7 +58,7 @@ def setup_logging() -> None:
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.make_filtering_bound_logger(
-            _get_log_level(settings.log_level)
+            _get_log_level(log_level)
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
@@ -60,7 +66,7 @@ def setup_logging() -> None:
     )
 
     # Also configure standard logging to use structlog
-    _configure_stdlib_logging()
+    _configure_stdlib_logging(log_level)
 
 
 def _get_log_level(level_name: str) -> int:
@@ -75,11 +81,11 @@ def _get_log_level(level_name: str) -> int:
     return levels.get(level_name.upper(), logging.INFO)
 
 
-def _configure_stdlib_logging() -> None:
+def _configure_stdlib_logging(log_level: str) -> None:
     """Configure stdlib logging to route through structlog."""
     # Set root logger level
     root_logger = logging.getLogger()
-    root_logger.setLevel(_get_log_level(settings.log_level))
+    root_logger.setLevel(_get_log_level(log_level))
 
     # Remove existing handlers
     root_logger.handlers.clear()
