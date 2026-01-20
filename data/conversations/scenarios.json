@@ -1,0 +1,229 @@
+{
+  "scenarios": [
+    {
+      "id": "password-reset-simple",
+      "name": "Simple Password Reset Request",
+      "description": "Customer asks how to reset their password - single turn resolution",
+      "category": "account",
+      "user_messages": [
+        "How do I reset my password?"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["password", "reset"]
+        }
+      ]
+    },
+    {
+      "id": "integration-clarification",
+      "name": "Integration Question Needing Clarification",
+      "description": "Vague integration question that requires follow-up",
+      "category": "integrations",
+      "user_messages": [
+        "I need help with an integration",
+        "The Shopify integration"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "WAIT",
+          "message_contains": ["which integration", "specific"]
+        },
+        {
+          "action": "CLOSE"
+        }
+      ]
+    },
+    {
+      "id": "ai-agent-setup",
+      "name": "AI Agent Setup Multi-turn",
+      "description": "Customer wants to set up AI Agent with follow-up questions",
+      "category": "ai-agent",
+      "user_messages": [
+        "I want to set up the AI Agent feature",
+        "What are the requirements?",
+        "How do I configure the tone of voice?"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["AI Agent", "Automate"]
+        },
+        {
+          "action": "CLOSE",
+          "message_contains": ["requirement", "Shopify"]
+        },
+        {
+          "action": "CLOSE",
+          "message_contains": ["tone", "friendly", "professional"]
+        }
+      ]
+    },
+    {
+      "id": "refund-request-handover",
+      "name": "Refund Request - Requires Handover",
+      "description": "Customer requesting a refund - should escalate to human",
+      "category": "billing",
+      "user_messages": [
+        "I want a refund for my subscription"
+      ],
+      "expected_final_action": "HANDOVER",
+      "expected_turns": [
+        {
+          "action": "HANDOVER",
+          "message_contains": ["team", "human", "assist"]
+        }
+      ]
+    },
+    {
+      "id": "account-ownership-transfer",
+      "name": "Account Ownership Transfer",
+      "description": "Question about transferring account ownership",
+      "category": "account",
+      "user_messages": [
+        "How can I transfer account ownership to someone else?",
+        "The current owner left the company and I'm an admin"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["Settings", "Users"]
+        },
+        {
+          "action": "CLOSE",
+          "message_contains": ["support@gorgias.com", "admin"]
+        }
+      ]
+    },
+    {
+      "id": "help-center-ai-articles",
+      "name": "AI-Generated Help Center Articles",
+      "description": "Customer wants to use AI to generate help center articles",
+      "category": "help-center",
+      "user_messages": [
+        "Can AI help me create help center articles?",
+        "What languages are supported?"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["AI Library", "AI-generated"]
+        },
+        {
+          "action": "CLOSE",
+          "message_contains": ["English"]
+        }
+      ]
+    },
+    {
+      "id": "sms-registration",
+      "name": "SMS Number Registration (A2P 10DLC)",
+      "description": "Customer asking about SMS number registration requirements",
+      "category": "channels",
+      "user_messages": [
+        "I need to send SMS messages to US customers. What do I need to do?"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["A2P", "10DLC", "registration"]
+        }
+      ]
+    },
+    {
+      "id": "angry-customer",
+      "name": "Angry Customer - Immediate Handover",
+      "description": "Frustrated customer expressing anger - should handover immediately",
+      "category": "escalation",
+      "user_messages": [
+        "This is ridiculous! Your service has been down for hours and nobody is helping me. I've lost thousands of dollars because of this!"
+      ],
+      "expected_final_action": "HANDOVER",
+      "expected_turns": [
+        {
+          "action": "HANDOVER"
+        }
+      ]
+    },
+    {
+      "id": "team-management",
+      "name": "Team Management Question",
+      "description": "Adding users to teams",
+      "category": "settings",
+      "user_messages": [
+        "How do I add someone to a team?"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["Settings", "Teams", "Add team member"]
+        }
+      ]
+    },
+    {
+      "id": "chat-customization",
+      "name": "Chat Widget Customization",
+      "description": "Customer wants to customize chat appearance",
+      "category": "chat",
+      "user_messages": [
+        "Can I customize how the chat widget looks?",
+        "I want to add custom CSS"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["customize", "Chat"]
+        },
+        {
+          "action": "CLOSE",
+          "message_contains": ["CSS", "script"]
+        }
+      ]
+    },
+    {
+      "id": "incognito-troubleshooting",
+      "name": "Browser Troubleshooting",
+      "description": "Customer having issues with Gorgias in browser",
+      "category": "troubleshooting",
+      "user_messages": [
+        "I'm having trouble with Gorgias in my browser. The email integration isn't working.",
+        "I'm using Chrome"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["incognito", "browser"]
+        },
+        {
+          "action": "CLOSE",
+          "message_contains": ["Chrome", "three dots", "Incognito"]
+        }
+      ]
+    },
+    {
+      "id": "ada-integration",
+      "name": "Third-Party Integration Setup",
+      "description": "Customer wants to set up Ada AI chatbot integration",
+      "category": "integrations",
+      "user_messages": [
+        "I want to integrate Ada chatbot with Gorgias. How do I do that?"
+      ],
+      "expected_final_action": "CLOSE",
+      "expected_turns": [
+        {
+          "action": "CLOSE",
+          "message_contains": ["Ada", "Chat", "handoff"]
+        }
+      ]
+    }
+  ]
+}

@@ -7,12 +7,21 @@ import pytest
 from support_agent.agent.schemas import AgentResponse
 from support_agent.evaluation import (
     ActionDistribution,
+    ConversationMetrics,
+    ConversationResult,
+    ConversationScenario,
     EvalSummary,
     EvaluationResult,
+    ExpectedTurn,
     LatencyStats,
+    TurnResult,
     calculate_action_distribution,
+    calculate_conversation_metrics,
+    calculate_conversation_summary,
     calculate_latency_stats,
     calculate_summary,
+    compare_to_golden,
+    format_conversation_summary_report,
     format_summary_report,
 )
 
@@ -445,3 +454,655 @@ class TestEvalSummary:
 
         assert summary.success_rate == pytest.approx(0.8)
         assert summary.queries_per_second == pytest.approx(2.0)
+
+
+# ============================================================================
+# Conversation Evaluation Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def sample_conversation_results() -> list[ConversationResult]:
+    """Sample conversation results for testing."""
+    return [
+        # Resolved conversation (2 turns)
+        ConversationResult(
+            scenario_id="password-reset",
+            scenario_name="Password Reset",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="How do I reset my password?",
+                    response=AgentResponse(
+                        action="CLOSE",
+                        message="Go to Settings > Security",
+                        sources=["Password Guide"],
+                    ),
+                    latency_ms=150.0,
+                ),
+            ],
+            total_latency_ms=150.0,
+        ),
+        # Multi-turn resolved conversation
+        ConversationResult(
+            scenario_id="integration-help",
+            scenario_name="Integration Help",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="I need help with an integration",
+                    response=AgentResponse(
+                        action="WAIT",
+                        message="Which integration?",
+                        sources=[],
+                    ),
+                    latency_ms=100.0,
+                ),
+                TurnResult(
+                    turn_index=1,
+                    user_message="Shopify",
+                    response=AgentResponse(
+                        action="CLOSE",
+                        message="Here's how to set up Shopify",
+                        sources=["Shopify Guide"],
+                    ),
+                    latency_ms=200.0,
+                ),
+            ],
+            total_latency_ms=300.0,
+        ),
+        # Handover conversation
+        ConversationResult(
+            scenario_id="refund-request",
+            scenario_name="Refund Request",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="I want a refund",
+                    response=AgentResponse(
+                        action="HANDOVER",
+                        message="Connecting you to billing",
+                        sources=[],
+                    ),
+                    latency_ms=80.0,
+                ),
+            ],
+            total_latency_ms=80.0,
+        ),
+        # Failed conversation
+        ConversationResult(
+            scenario_id="failed-scenario",
+            scenario_name="Failed Scenario",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Help me",
+                    response=None,
+                    latency_ms=50.0,
+                    error="LLM API error",
+                ),
+            ],
+            total_latency_ms=50.0,
+        ),
+    ]
+
+
+@pytest.fixture
+def sample_scenarios() -> list[ConversationScenario]:
+    """Sample scenarios for golden comparison tests."""
+    return [
+        ConversationScenario(
+            id="password-reset",
+            name="Password Reset",
+            description="Password reset flow",
+            user_messages=["How do I reset my password?"],
+            expected_final_action="CLOSE",
+            expected_turns=[
+                ExpectedTurn(action="CLOSE", message_contains=["password"]),
+            ],
+        ),
+        ConversationScenario(
+            id="integration-help",
+            name="Integration Help",
+            description="Integration help flow",
+            user_messages=["I need help with an integration", "Shopify"],
+            expected_final_action="CLOSE",
+            expected_turns=[
+                ExpectedTurn(action="WAIT"),
+                ExpectedTurn(action="CLOSE"),
+            ],
+        ),
+        ConversationScenario(
+            id="refund-request",
+            name="Refund Request",
+            description="Refund request flow",
+            user_messages=["I want a refund"],
+            expected_final_action="HANDOVER",
+        ),
+        ConversationScenario(
+            id="failed-scenario",
+            name="Failed Scenario",
+            description="Expected to fail",
+            user_messages=["Help me"],
+            expected_final_action="CLOSE",  # Mismatch - will fail golden comparison
+        ),
+    ]
+
+
+# ============================================================================
+# ConversationResult Tests
+# ============================================================================
+
+
+class TestConversationResult:
+    """Tests for ConversationResult schema."""
+
+    def test_success_when_all_turns_succeed(self):
+        """Success is True when all turns succeed."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Hello",
+                    response=AgentResponse(action="CLOSE", message="Hi", sources=[]),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=100.0,
+        )
+        assert result.success is True
+
+    def test_success_false_when_turn_fails(self):
+        """Success is False when any turn fails."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Hello",
+                    response=None,
+                    latency_ms=50.0,
+                    error="Failed",
+                ),
+            ],
+            total_latency_ms=50.0,
+        )
+        assert result.success is False
+
+    def test_final_action(self):
+        """Final action is from last turn."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q1",
+                    response=AgentResponse(action="WAIT", message="?", sources=[]),
+                    latency_ms=100.0,
+                ),
+                TurnResult(
+                    turn_index=1,
+                    user_message="Q2",
+                    response=AgentResponse(action="CLOSE", message="Done", sources=[]),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=200.0,
+        )
+        assert result.final_action == "CLOSE"
+
+    def test_is_resolved(self):
+        """is_resolved returns True for CLOSE action."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q",
+                    response=AgentResponse(action="CLOSE", message="Done", sources=[]),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=100.0,
+        )
+        assert result.is_resolved is True
+        assert result.is_handed_over is False
+
+    def test_is_handed_over(self):
+        """is_handed_over returns True for HANDOVER action."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q",
+                    response=AgentResponse(
+                        action="HANDOVER", message="Escalating", sources=[]
+                    ),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=100.0,
+        )
+        assert result.is_handed_over is True
+        assert result.is_resolved is False
+
+    def test_avg_latency(self):
+        """Average latency calculated correctly."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q1",
+                    response=AgentResponse(action="WAIT", message="?", sources=[]),
+                    latency_ms=100.0,
+                ),
+                TurnResult(
+                    turn_index=1,
+                    user_message="Q2",
+                    response=AgentResponse(action="CLOSE", message="Done", sources=[]),
+                    latency_ms=200.0,
+                ),
+            ],
+            total_latency_ms=300.0,
+        )
+        assert result.avg_latency_ms == pytest.approx(150.0)
+
+
+# ============================================================================
+# ConversationScenario Tests
+# ============================================================================
+
+
+class TestConversationScenario:
+    """Tests for ConversationScenario schema."""
+
+    def test_turn_count(self):
+        """Turn count is number of user messages."""
+        scenario = ConversationScenario(
+            id="test",
+            name="Test",
+            user_messages=["Q1", "Q2", "Q3"],
+        )
+        assert scenario.turn_count == 3
+
+    def test_default_max_turns(self):
+        """Default max turns is 10."""
+        scenario = ConversationScenario(
+            id="test",
+            name="Test",
+            user_messages=["Q1"],
+        )
+        assert scenario.max_turns == 10
+
+
+# ============================================================================
+# calculate_conversation_metrics Tests
+# ============================================================================
+
+
+class TestCalculateConversationMetrics:
+    """Tests for calculate_conversation_metrics function."""
+
+    def test_calculates_basic_metrics(self, sample_conversation_results):
+        """Calculates basic metrics correctly."""
+        metrics = calculate_conversation_metrics(sample_conversation_results)
+
+        assert metrics.total_scenarios == 4
+        assert metrics.successful_scenarios == 3  # 1 failed
+        assert metrics.failed_scenarios == 1
+
+    def test_calculates_resolution_rate(self, sample_conversation_results):
+        """Calculates resolution rate correctly."""
+        metrics = calculate_conversation_metrics(sample_conversation_results)
+
+        # 2 CLOSE out of 4 total
+        assert metrics.resolution_rate == pytest.approx(0.5)
+
+    def test_calculates_handover_rate(self, sample_conversation_results):
+        """Calculates handover rate correctly."""
+        metrics = calculate_conversation_metrics(sample_conversation_results)
+
+        # 1 HANDOVER out of 4 total
+        assert metrics.handover_rate == pytest.approx(0.25)
+
+    def test_calculates_avg_turns(self, sample_conversation_results):
+        """Calculates average turns correctly."""
+        metrics = calculate_conversation_metrics(sample_conversation_results)
+
+        # Total turns: 1 + 2 + 1 + 1 = 5, scenarios = 4
+        assert metrics.avg_turns_per_scenario == pytest.approx(1.25)
+
+    def test_calculates_avg_turns_to_resolution(self, sample_conversation_results):
+        """Calculates average turns to resolution correctly."""
+        metrics = calculate_conversation_metrics(sample_conversation_results)
+
+        # Resolved: password-reset (1 turn), integration-help (2 turns)
+        # Average: (1 + 2) / 2 = 1.5
+        assert metrics.avg_turns_to_resolution == pytest.approx(1.5)
+
+    def test_calculates_avg_latency_per_turn(self, sample_conversation_results):
+        """Calculates average latency per turn correctly."""
+        metrics = calculate_conversation_metrics(sample_conversation_results)
+
+        # Successful results: 150 + 300 + 80 = 530ms, turns = 1 + 2 + 1 = 4
+        assert metrics.avg_latency_per_turn_ms == pytest.approx(132.5)
+
+    def test_empty_results(self):
+        """Empty results return zero metrics."""
+        metrics = calculate_conversation_metrics([])
+
+        assert metrics.total_scenarios == 0
+        assert metrics.resolution_rate == 0.0
+        assert metrics.avg_turns_per_scenario == 0.0
+
+    def test_golden_match_rate_with_scenarios(
+        self, sample_conversation_results, sample_scenarios
+    ):
+        """Calculates golden match rate when scenarios provided."""
+        metrics = calculate_conversation_metrics(
+            sample_conversation_results, sample_scenarios
+        )
+
+        # password-reset: CLOSE matches CLOSE ✓
+        # integration-help: CLOSE matches CLOSE ✓
+        # refund-request: HANDOVER matches HANDOVER ✓
+        # failed-scenario: None vs CLOSE ✗
+        # 3 out of 4 match
+        assert metrics.golden_match_rate == pytest.approx(0.75)
+
+    def test_golden_match_rate_none_without_scenarios(
+        self, sample_conversation_results
+    ):
+        """Golden match rate is None when no scenarios provided."""
+        metrics = calculate_conversation_metrics(sample_conversation_results)
+        assert metrics.golden_match_rate is None
+
+
+# ============================================================================
+# compare_to_golden Tests
+# ============================================================================
+
+
+class TestCompareToGolden:
+    """Tests for compare_to_golden function."""
+
+    def test_final_action_match(self):
+        """Compares final action correctly."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q",
+                    response=AgentResponse(action="CLOSE", message="Done", sources=[]),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=100.0,
+        )
+        scenario = ConversationScenario(
+            id="test",
+            name="Test",
+            user_messages=["Q"],
+            expected_final_action="CLOSE",
+        )
+
+        comparison = compare_to_golden(result, scenario)
+
+        assert comparison.final_action_match is True
+        assert comparison.overall_match is True
+
+    def test_final_action_mismatch(self):
+        """Detects final action mismatch."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q",
+                    response=AgentResponse(
+                        action="HANDOVER", message="Escalating", sources=[]
+                    ),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=100.0,
+        )
+        scenario = ConversationScenario(
+            id="test",
+            name="Test",
+            user_messages=["Q"],
+            expected_final_action="CLOSE",
+        )
+
+        comparison = compare_to_golden(result, scenario)
+
+        assert comparison.final_action_match is False
+        assert comparison.overall_match is False
+
+    def test_per_turn_action_comparison(self):
+        """Compares per-turn actions correctly."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q1",
+                    response=AgentResponse(action="WAIT", message="More info?", sources=[]),
+                    latency_ms=100.0,
+                ),
+                TurnResult(
+                    turn_index=1,
+                    user_message="Q2",
+                    response=AgentResponse(action="CLOSE", message="Done", sources=[]),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=200.0,
+        )
+        scenario = ConversationScenario(
+            id="test",
+            name="Test",
+            user_messages=["Q1", "Q2"],
+            expected_final_action="CLOSE",
+            expected_turns=[
+                ExpectedTurn(action="WAIT"),
+                ExpectedTurn(action="CLOSE"),
+            ],
+        )
+
+        comparison = compare_to_golden(result, scenario)
+
+        assert comparison.overall_match is True
+        assert len(comparison.turn_matches) == 2
+        assert comparison.turn_matches[0]["match"] is True
+        assert comparison.turn_matches[1]["match"] is True
+
+    def test_per_turn_action_mismatch(self):
+        """Detects per-turn action mismatch."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q",
+                    response=AgentResponse(
+                        action="CLOSE", message="Done", sources=[]
+                    ),  # Expected WAIT
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=100.0,
+        )
+        scenario = ConversationScenario(
+            id="test",
+            name="Test",
+            user_messages=["Q"],
+            expected_final_action="CLOSE",
+            expected_turns=[
+                ExpectedTurn(action="WAIT"),  # Mismatch
+            ],
+        )
+
+        comparison = compare_to_golden(result, scenario)
+
+        assert comparison.turn_matches[0]["match"] is False
+        assert "action_mismatch" in comparison.turn_matches[0]
+
+    def test_message_contains_check(self):
+        """Checks message contains expected content."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="How do I reset my password?",
+                    response=AgentResponse(
+                        action="CLOSE",
+                        message="Go to Settings to reset your password",
+                        sources=[],
+                    ),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=100.0,
+        )
+        scenario = ConversationScenario(
+            id="test",
+            name="Test",
+            user_messages=["How do I reset my password?"],
+            expected_final_action="CLOSE",
+            expected_turns=[
+                ExpectedTurn(action="CLOSE", message_contains=["password", "Settings"]),
+            ],
+        )
+
+        comparison = compare_to_golden(result, scenario)
+
+        assert comparison.turn_matches[0]["match"] is True
+
+    def test_message_contains_missing(self):
+        """Detects missing message content."""
+        result = ConversationResult(
+            scenario_id="test",
+            scenario_name="Test",
+            turns=[
+                TurnResult(
+                    turn_index=0,
+                    user_message="Q",
+                    response=AgentResponse(
+                        action="CLOSE", message="Here's the answer", sources=[]
+                    ),
+                    latency_ms=100.0,
+                ),
+            ],
+            total_latency_ms=100.0,
+        )
+        scenario = ConversationScenario(
+            id="test",
+            name="Test",
+            user_messages=["Q"],
+            expected_final_action="CLOSE",
+            expected_turns=[
+                ExpectedTurn(
+                    action="CLOSE", message_contains=["password", "reset"]
+                ),  # Not in message
+            ],
+        )
+
+        comparison = compare_to_golden(result, scenario)
+
+        assert comparison.turn_matches[0]["match"] is False
+        assert "missing_content" in comparison.turn_matches[0]
+
+
+# ============================================================================
+# calculate_conversation_summary Tests
+# ============================================================================
+
+
+class TestCalculateConversationSummary:
+    """Tests for calculate_conversation_summary function."""
+
+    def test_calculates_summary(self, sample_conversation_results, sample_scenarios):
+        """Creates correct summary from results."""
+        start = datetime.now(UTC)
+        end = start + timedelta(seconds=10)
+
+        summary = calculate_conversation_summary(
+            sample_conversation_results, sample_scenarios, start, end, eval_tag="test-run"
+        )
+
+        assert summary.total_scenarios == 4
+        assert summary.successful == 3
+        assert summary.failed == 1
+        assert summary.duration_seconds == pytest.approx(10.0)
+        assert summary.eval_tag == "test-run"
+        assert summary.metrics.total_scenarios == 4
+
+    def test_success_rate_computed(self, sample_conversation_results):
+        """Success rate computed correctly."""
+        start = datetime.now(UTC)
+        end = start + timedelta(seconds=1)
+
+        summary = calculate_conversation_summary(
+            sample_conversation_results, None, start, end
+        )
+        assert summary.success_rate == pytest.approx(0.75)
+
+
+# ============================================================================
+# format_conversation_summary_report Tests
+# ============================================================================
+
+
+class TestFormatConversationSummaryReport:
+    """Tests for format_conversation_summary_report function."""
+
+    def test_contains_key_information(self, sample_conversation_results, sample_scenarios):
+        """Report contains key information."""
+        start = datetime.now(UTC)
+        end = start + timedelta(seconds=10)
+        summary = calculate_conversation_summary(
+            sample_conversation_results, sample_scenarios, start, end, eval_tag="test-run"
+        )
+
+        report = format_conversation_summary_report(summary)
+
+        assert "CONVERSATION EVALUATION SUMMARY" in report
+        assert "Total Scenarios:" in report
+        assert "4" in report
+        assert "OUTCOME DISTRIBUTION" in report
+        assert "Resolved (CLOSE):" in report
+        assert "CONVERSATION METRICS" in report
+        assert "Avg Turns/Scenario:" in report
+        assert "test-run" in report
+
+    def test_includes_golden_comparison_when_available(
+        self, sample_conversation_results, sample_scenarios
+    ):
+        """Report includes golden comparison when available."""
+        start = datetime.now(UTC)
+        end = start + timedelta(seconds=10)
+        summary = calculate_conversation_summary(
+            sample_conversation_results, sample_scenarios, start, end
+        )
+
+        report = format_conversation_summary_report(summary)
+
+        assert "GOLDEN COMPARISON" in report
+        assert "Match Rate:" in report
