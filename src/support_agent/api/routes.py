@@ -36,6 +36,20 @@ health_router = APIRouter(tags=["health"])
 
 
 @health_router.get(
+    "/",
+    summary="API Root",
+    description="Root endpoint returning status and links.",
+)
+async def api_root() -> dict[str, str]:
+    """Return info about the API and links to Docs and UI."""
+    return {
+        "message": "Welcome to the Support Agent API!",
+        "api_docs": "/docs",
+        "gradio_ui": "http://127.0.0.1:7860",
+    }
+
+
+@health_router.get(
     "/health",
     response_model=HealthResponse,
     summary="Health check",
