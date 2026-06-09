@@ -70,8 +70,15 @@ class HelpCenterParser:
     @staticmethod
     def _clean_text_formatting(text: str) -> str:
         """Cleans multiple spaces and empty lines in the text."""
-        text = re.sub(r"\s+", " ", text)
-        text = re.sub(r"\n\s*\n", "\n\n", text)
+        # 1. Collapse multiple spaces and tabs on each line
+        lines = []
+        for line in text.splitlines():
+            cleaned_line = re.sub(r"[ \t]+", " ", line).strip()
+            lines.append(cleaned_line)
+        text = "\n".join(lines)
+
+        # 2. Collapse 3 or more consecutive newlines to exactly 2 newlines
+        text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
 
     @staticmethod
@@ -83,7 +90,7 @@ class HelpCenterParser:
         HelpCenterParser._process_headers(soup)
         HelpCenterParser._process_lists(soup)
 
-        text = soup.get_text(separator=" ", strip=True)
+        text = soup.get_text(separator="\n", strip=False)
 
         return HelpCenterParser._clean_text_formatting(text)
 

@@ -187,10 +187,9 @@ class TestCleanTextFormatting:
         assert result == "a b"
 
     def test_collapses_newlines(self):
-        """Multiple spaces/whitespace become single space (newlines become spaces)."""
-        # Note: _clean_text_formatting collapses ALL whitespace to single space
+        """Multiple consecutive newlines are collapsed to maximum of two newlines."""
         result = HelpCenterParser._clean_text_formatting("a\n\n\n\nb")
-        assert result == "a b"
+        assert result == "a\n\nb"
 
     def test_strips_text(self):
         """Text is stripped."""
