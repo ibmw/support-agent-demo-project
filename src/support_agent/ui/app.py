@@ -394,7 +394,7 @@ class SupportAgentUI:
 
 def create_gradio_app(api_base_url: str | None = None) -> gr.Blocks:
     """
-    Create the Gradio chat interface.
+    Create the Gradio chat interface with a HuggingChat-style layout.
 
     Args:
         api_base_url: Override API URL (defaults to settings)
@@ -410,52 +410,98 @@ def create_gradio_app(api_base_url: str | None = None) -> gr.Blocks:
         app._custom_css = CUSTOM_CSS
         app._custom_theme = CUSTOM_THEME
 
-        # Header
-        gr.HTML(
-            """
-            <div class="main-header">
-                <h1>🤖 Support Agent</h1>
-                <p>AI-powered customer support assistant</p>
-            </div>
-            """
-        )
+        # Left Sidebar (incorporating stats and controls)
+        with gr.Sidebar(label="Support Menu", open=True) as sidebar:
+            gr.HTML(
+                """
+                <div class="sidebar-header">
+                    <h2>🤖 Support Agent</h2>
+                </div>
+                """
+            )
 
-        # Header Controls (Row with New Conversation button and Status Indicator side-by-side)
-        with gr.Row(elem_classes=["header-controls"]):
-            with gr.Column(scale=4, min_width=200):
-                new_session_btn = gr.Button(
-                    "🔄 New Conversation",
-                    elem_classes=["new-session-btn"],
-                    size="sm",
-                )
-            with gr.Column(scale=2, min_width=150):
-                status_display = gr.HTML(
-                    '<div class="status-indicator">'
-                    '<span class="status-dot status-connected"></span>'
-                    "<span>Checking connection...</span>"
-                    "</div>"
-                )
+            new_session_btn = gr.Button(
+                "🔄 New Conversation",
+                elem_classes=["new-session-btn"],
+                size="sm",
+            )
 
-        # Chat interface - Gradio 6.x uses messages format (dict with role/content)
-        chatbot = gr.Chatbot(
-            label="Conversation",
-            height=550,
-            elem_classes=["chat-container"],
-            buttons=["copy"],  # Gradio 6.x: replaces show_copy_button
-        )
+            gr.HTML("<div class='sidebar-divider'></div>")
 
-        # Input area
-        with gr.Row():
-            with gr.Column(scale=5):
-                msg_input = gr.Textbox(
-                    placeholder="Type your question here...",
-                    label="Message",
-                    lines=2,
-                    max_lines=5,
-                    show_label=False,
-                )
-            with gr.Column(scale=1, min_width=120):
-                submit_btn = gr.Button("Send", variant="primary", size="lg")
+            gr.HTML(
+                """
+                <div class="sidebar-info">
+                    <h3>📚 Knowledge Base</h3>
+                    <p>Indexed chunks: <b>1031</b></p>
+                    <p>Powered by ChromaDB</p>
+                </div>
+                """
+            )
+
+            gr.HTML("<div class='sidebar-divider'></div>")
+
+            gr.HTML(
+                """
+                <div class="sidebar-footer">
+                    <a href="/docs" target="_blank" class="docs-link">📖 API Documentation</a>
+                </div>
+                """
+            )
+
+            status_display = gr.HTML(
+                '<div class="status-indicator">'
+                '<span class="status-dot status-connected"></span>'
+                "<span>Checking connection...</span>"
+                "</div>"
+            )
+
+        # Right Main Content area
+        with gr.Column(elem_classes=["main-content"]):
+            # Welcome banner
+            gr.HTML(
+                """
+                <div class="welcome-container">
+                    <h1>🤖 Support Agent</h1>
+                    <p>Ask anything about setup, integrations, billing, and troubleshooting.</p>
+                </div>
+                """
+            )
+
+            # Chatbot component
+            chatbot = gr.Chatbot(
+                height=500,
+                elem_classes=["chat-container"],
+                buttons=["copy"],  # Gradio 6.x: replaces show_copy_button
+            )
+
+            # Quick starter questions
+            with gr.Row(elem_classes=["starter-questions"]):
+                q1 = gr.Button("How do I reset my password?", size="sm", elem_classes=["starter-btn"])
+                q2 = gr.Button("How do I integrate with Shopify?", size="sm", elem_classes=["starter-btn"])
+                q3 = gr.Button("What is the refund policy?", size="sm", elem_classes=["starter-btn"])
+
+            # Input area
+            with gr.Row(elem_classes=["input-row"]):
+                with gr.Column(scale=5):
+                    msg_input = gr.Textbox(
+                        placeholder="Ask anything...",
+                        label="Message",
+                        lines=1,
+                        max_lines=5,
+                        show_label=False,
+                        elem_classes=["textbox"]
+                    )
+                with gr.Column(scale=1, min_width=100):
+                    submit_btn = gr.Button("Send", variant="primary", size="lg", elem_classes=["submit-btn"])
+
+            # Disclaimer
+            gr.HTML(
+                """
+                <div class="disclaimer-text">
+                    * Support Agent • Responses are generated using RAG over Help Center articles.
+                </div>
+                """
+            )
 
         # Hidden status text for state management
         status_text = gr.Textbox(
@@ -509,7 +555,23 @@ def create_gradio_app(api_base_url: str | None = None) -> gr.Blocks:
                 "</div>"
             )
 
-        # Wire up events
+        def load_starter(text: str) -> str:
+            """Return the starter question text."""
+            return text
+
+        # Wire up starter buttons
+        for btn in [q1, q2, q3]:
+            btn.click(
+                fn=load_starter,
+                inputs=[btn],
+                outputs=[msg_input],
+            ).then(
+                fn=respond,
+                inputs=[msg_input, chatbot],
+                outputs=[msg_input, chatbot],
+            )
+
+        # Wire up inputs
         submit_btn.click(
             fn=respond,
             inputs=[msg_input, chatbot],

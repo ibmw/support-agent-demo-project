@@ -56,7 +56,7 @@ A customer support AI assistant powered by RAG (Retrieval-Augmented Generation) 
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/support-agent-demo-project.git
+git clone https://github.com/ibmw/support-agent-demo-project.git
 cd support-agent-demo-project
 
 # Install dependencies with uv
