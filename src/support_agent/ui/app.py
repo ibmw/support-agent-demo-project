@@ -30,63 +30,129 @@ CUSTOM_CSS = """
 :root {
     --primary-color: #6366f1;
     --primary-hover: #4f46e5;
-    --bg-gradient-start: #0f172a;
-    --bg-gradient-end: #1e1b4b;
-    --surface-color: rgba(30, 41, 59, 0.8);
-    --surface-border: rgba(99, 102, 241, 0.2);
-    --text-primary: #f1f5f9;
+    --bg-gradient-start: #0b0f19;
+    --bg-gradient-end: #1a153b;
+    --surface-color: rgba(22, 30, 49, 0.7);
+    --surface-border: rgba(99, 102, 241, 0.15);
+    --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --accent-glow: rgba(99, 102, 241, 0.4);
+    --accent-glow: rgba(99, 102, 241, 0.25);
 }
 
 .gradio-container {
     font-family: 'Space Grotesk', system-ui, sans-serif !important;
-    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%) !important;
+    background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f172a 100%) !important;
     min-height: 100vh;
 }
 
 .main-header {
     text-align: center;
-    padding: 2rem 1rem;
-    background: linear-gradient(180deg, rgba(99, 102, 241, 0.1) 0%, transparent 100%);
-    border-bottom: 1px solid var(--surface-border);
+    padding: 1.5rem 1rem;
+    background: transparent;
+    border-bottom: none;
     margin-bottom: 1.5rem;
 }
 
 .main-header h1 {
-    font-size: 2.5rem;
+    font-size: 2.8rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f472b6 100%);
+    background: linear-gradient(135deg, #a5b4fc 0%, #c084fc 40%, #f472b6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     letter-spacing: -0.02em;
+    filter: drop-shadow(0 0 20px rgba(165, 180, 252, 0.2));
 }
 
 .main-header p {
     color: var(--text-secondary);
     font-size: 1.1rem;
+    font-weight: 400;
 }
 
+/* Header Controls row */
+.header-controls {
+    align-items: center !important;
+    margin-bottom: 1rem !important;
+    gap: 15px !important;
+}
+
+/* Chat container styles */
 .chat-container {
     background: var(--surface-color) !important;
     border: 1px solid var(--surface-border) !important;
-    border-radius: 16px !important;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2), 0 0 40px var(--accent-glow);
+    border-radius: 20px !important;
+    backdrop-filter: blur(20px) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 30px var(--accent-glow) !important;
+    padding: 10px !important;
 }
 
+/* Override Gradio Message bubbles */
+.chat-container .message {
+    padding: 14px 18px !important;
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    margin-bottom: 12px !important;
+    max-width: 80% !important;
+    width: fit-content !important;
+    border-radius: 16px !important;
+}
+
+/* User Message styling */
+.chat-container .message.user {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    color: #ffffff !important;
+    border-radius: 18px 18px 0px 18px !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    margin-left: auto !important;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25) !important;
+}
+
+/* Assistant Message styling */
+.chat-container .message.assistant,
+.chat-container .message.bot,
+.chat-container .message.pending {
+    background: rgba(30, 41, 59, 0.65) !important;
+    color: #f1f5f9 !important;
+    border-radius: 18px 18px 18px 0px !important;
+    border: 1px solid rgba(99, 102, 241, 0.18) !important;
+    margin-right: auto !important;
+}
+
+/* Input Area overrides */
+.textbox textarea {
+    background: rgba(15, 23, 42, 0.5) !important;
+    border: 1px solid rgba(99, 102, 241, 0.3) !important;
+    border-radius: 12px !important;
+    color: #f8fafc !important;
+    padding: 14px 18px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    font-family: inherit !important;
+}
+
+.textbox textarea:focus {
+    border-color: #8b5cf6 !important;
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.35) !important;
+    background: rgba(15, 23, 42, 0.75) !important;
+    outline: none !important;
+}
+
+/* Connection Status styling */
 .status-indicator {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 10px;
     padding: 8px 16px;
-    background: var(--surface-color);
+    background: rgba(22, 30, 49, 0.5);
     border: 1px solid var(--surface-border);
-    border-radius: 8px;
+    border-radius: 12px;
     font-size: 0.85rem;
     color: var(--text-primary);
+    height: 38px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
 .status-dot {
@@ -98,33 +164,116 @@ CUSTOM_CSS = """
 
 .status-connected {
     background: #22c55e;
-    box-shadow: 0 0 8px #22c55e;
+    box-shadow: 0 0 10px #22c55e;
 }
 
 .status-error {
     background: #ef4444;
-    box-shadow: 0 0 8px #ef4444;
+    box-shadow: 0 0 10px #ef4444;
 }
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    50% { opacity: 0.4; }
 }
 
+/* New session button in control header */
 .new-session-btn {
-    background: linear-gradient(135deg, var(--primary-color) 0%, #8b5cf6 100%) !important;
-    border: none !important;
-    color: white !important;
+    background: rgba(99, 102, 241, 0.15) !important;
+    border: 1px solid rgba(99, 102, 241, 0.4) !important;
+    color: #e2e8f0 !important;
     font-weight: 600 !important;
-    padding: 10px 20px !important;
-    border-radius: 10px !important;
-    transition: all 0.2s ease !important;
-    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3) !important;
+    padding: 8px 18px !important;
+    border-radius: 12px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    height: 38px !important;
+    width: fit-content !important;
+    min-width: 180px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
 }
 
 .new-session-btn:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4) !important;
+    background: rgba(99, 102, 241, 0.3) !important;
+    border-color: #818cf8 !important;
+    color: #ffffff !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Custom premium action badges */
+.action-badge-container {
+    margin-bottom: 10px;
+}
+
+.action-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.action-badge.action-close {
+    background: rgba(34, 197, 94, 0.15) !important;
+    color: #4ade80 !important;
+    border: 1px solid rgba(34, 197, 94, 0.3) !important;
+}
+
+.action-badge.action-handover {
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: #fbbf24 !important;
+    border: 1px solid rgba(245, 158, 11, 0.3) !important;
+}
+
+.action-badge.action-wait {
+    background: rgba(59, 130, 246, 0.15) !important;
+    color: #60a5fa !important;
+    border: 1px solid rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Custom sources display */
+.sources-section {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.sources-title {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.sources-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.source-tag {
+    font-size: 0.75rem;
+    background: rgba(99, 102, 241, 0.12);
+    color: #c7d2fe;
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+.source-tag:hover {
+    background: rgba(99, 102, 241, 0.22);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.25);
 }
 
 footer {
@@ -142,18 +291,19 @@ CUSTOM_THEME = gr.themes.Base(
 
 
 def format_bot_message(action: str, message: str, sources: list[str]) -> str:
-    """Format the bot response with action badge and sources."""
+    """Format the bot response with custom HTML classes for premium styling."""
     label, color, bg_color = ACTION_STYLES.get(
         action, ("Unknown", "#6b7280", "#f3f4f6")
     )
 
-    # Build the response with action badge
-    parts = [f"**{label}**\n\n{message}"]
+    # Action badge wrapped in styled HTML span
+    badge_html = f'<div class="action-badge-container"><span class="action-badge action-{action.lower()}">{label}</span></div>'
+    parts = [f'{badge_html}\n\n{message}']
 
-    # Add sources if present
+    # Sources formatted as individual interactive tags
     if sources:
-        sources_text = " • ".join(f"`{s}`" for s in sources)
-        parts.append(f"\n\n---\n📚 **Sources:** {sources_text}")
+        sources_html = "".join(f'<span class="source-tag">{s}</span>' for s in sources)
+        parts.append(f'\n\n<div class="sources-section"><div class="sources-title">Sources:</div><div class="sources-list">{sources_html}</div></div>')
 
     return "".join(parts)
 
@@ -270,11 +420,15 @@ def create_gradio_app(api_base_url: str | None = None) -> gr.Blocks:
             """
         )
 
-        # Status indicator
-        with gr.Row():
-            with gr.Column(scale=4):
-                pass
-            with gr.Column(scale=2):
+        # Header Controls (Row with New Conversation button and Status Indicator side-by-side)
+        with gr.Row(elem_classes=["header-controls"]):
+            with gr.Column(scale=4, min_width=200):
+                new_session_btn = gr.Button(
+                    "🔄 New Conversation",
+                    elem_classes=["new-session-btn"],
+                    size="sm",
+                )
+            with gr.Column(scale=2, min_width=150):
                 status_display = gr.HTML(
                     '<div class="status-indicator">'
                     '<span class="status-dot status-connected"></span>'
@@ -285,7 +439,7 @@ def create_gradio_app(api_base_url: str | None = None) -> gr.Blocks:
         # Chat interface - Gradio 6.x uses messages format (dict with role/content)
         chatbot = gr.Chatbot(
             label="Conversation",
-            height=500,
+            height=550,
             elem_classes=["chat-container"],
             buttons=["copy"],  # Gradio 6.x: replaces show_copy_button
         )
@@ -303,18 +457,12 @@ def create_gradio_app(api_base_url: str | None = None) -> gr.Blocks:
             with gr.Column(scale=1, min_width=120):
                 submit_btn = gr.Button("Send", variant="primary", size="lg")
 
-        # Control buttons
-        with gr.Row():
-            new_session_btn = gr.Button(
-                "🔄 New Conversation",
-                elem_classes=["new-session-btn"],
-                size="sm",
-            )
-            status_text = gr.Textbox(
-                label="Status",
-                interactive=False,
-                visible=False,
-            )
+        # Hidden status text for state management
+        status_text = gr.Textbox(
+            label="Status",
+            interactive=False,
+            visible=False,
+        )
 
         # Event handlers
         def respond(message: str, history: list) -> tuple[str, list]:
